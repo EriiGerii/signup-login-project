@@ -1,77 +1,312 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../services/supabaseClient';
 
 const Dashboard = () => {
   const { user, signOut, loading } = useAuth();
   const navigate = useNavigate();
+  
+  const [items, setItems] = useState([]);
+  const [loadingData, setLoadingData] = useState(false);
+  const [formData, setFormData] = useState({ title: '', description: '', status: 'active' });
+  const [editingId, setEditingId] = useState(null);
+  const [message, setMessage] = useState({ text: '', type: '' });
+
+  const fetchUserData = async () => {
+    setLoadingData(true);
+    try {
+      const { data, error } = await supabase
+        .from('user_data')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setItems(data || []);
+    } catch (error) {
+      setMessage({ text: 'Gabim gjatë leximit të të dhënave', type: 'error' });
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) fetchUserData();
+  }, [user]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.title.trim()) {
+      setMessage({ text: 'Titulli është i detyrueshëm', type: 'error' });
+      return;
+    }
+    try {
+      const { error } = await supabase.from('user_data').insert([{
+        user_id: user.id,
+        title: formData.title,
+        description: formData.description,
+        status: formData.status
+      }]);
+      if (error) throw error;
+      setMessage({ text: '✨ Të dhënat u shtuan me sukses!', type: 'success' });
+      setFormData({ title: '', description: '', status: 'active' });
+      fetchUserData();
+      setTimeout(() => setMessage({ text: '', type: '' }), 3000);
+    } catch (error) {
+      setMessage({ text: 'Gabim gjatë shtimit', type: 'error' });
+    }
+  };
+
+  const handleUpdate = async (id) => {
+    if (!formData.title.trim()) return;
+    try {
+      const { error } = await supabase
+        .from('user_data')
+        .update({ title: formData.title, description: formData.description, status: formData.status, updated_at: new Date() })
+        .eq('id', id).eq('user_id', user.id);
+      if (error) throw error;
+      setMessage({ text: '✏️ Të dhënat u përditësuan!', type: 'success' });
+      setEditingId(null);
+      setFormData({ title: '', description: '', status: 'active' });
+      fetchUserData();
+      setTimeout(() => setMessage({ text: '', type: '' }), 3000);
+    } catch (error) {
+      setMessage({ text: 'Gabim gjatë përditësimit', type: 'error' });
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('A jeni i sigurt që doni ta fshini?')) return;
+    try {
+      const { error } = await supabase.from('user_data').delete().eq('id', id).eq('user_id', user.id);
+      if (error) throw error;
+      setMessage({ text: '🗑️ Të dhënat u fshinë!', type: 'success' });
+      fetchUserData();
+      setTimeout(() => setMessage({ text: '', type: '' }), 3000);
+    } catch (error) {
+      setMessage({ text: 'Gabim gjatë fshirjes', type: 'error' });
+    }
+  };
+
+  const startEditing = (item) => {
+    setEditingId(item.id);
+    setFormData({ title: item.title, description: item.description || '', status: item.status });
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setFormData({ title: '', description: '', status: 'active' });
+  };
 
   const handleLogout = async () => {
     await signOut();
     navigate('/login');
   };
 
+  // Funksion për të marrë ngjyrat sipas statusit
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'active': return 'bg-gradient-to-r from-green-400 to-green-500';
+      case 'pending': return 'bg-gradient-to-r from-yellow-400 to-yellow-500';
+      case 'completed': return 'bg-gradient-to-r from-blue-400 to-blue-500';
+      default: return 'bg-gradient-to-r from-gray-400 to-gray-500';
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
+      {/* Navbar kreative */}
+      <nav className="bg-white/80 backdrop-blur-md shadow-lg border-b border-white/20 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold text-xl">📋</span>
+              </div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                Creative Dashboard
+              </h1>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-700">
-                Welcome, <span className="font-medium">{user?.user_metadata?.full_name || user?.email}</span>
+              <div className="flex items-center space-x-2 bg-gradient-to-r from-indigo-50 to-purple-50 px-4 py-2 rounded-full shadow-inner">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                  {user?.user_metadata?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                </div>
+                <span className="text-sm font-medium text-gray-700">
+                  {user?.user_metadata?.full_name || user?.email?.split('@')[0]}
+                </span>
               </div>
               <button
                 onClick={handleLogout}
                 disabled={loading}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition duration-200"
+                className="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold rounded-full shadow-md hover:shadow-xl transition-all duration-300 transform hover:scale-105"
               >
-                Sign Out
+                🚪 Logout
               </button>
             </div>
           </div>
         </div>
       </nav>
 
+      {/* Përmbajtja kryesore */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Welcome to your Dashboard
-          </h2>
-          <div className="space-y-4">
-            <div className="border-t border-gray-200 pt-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">User Information</h3>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600">
-                  <strong>Email:</strong> {user?.email}
-                </p>
-                <p className="text-sm text-gray-600 mt-2">
-                  <strong>User ID:</strong> {user?.id}
-                </p>
-                <p className="text-sm text-gray-600 mt-2">
-                  <strong>Account Created:</strong> {new Date(user?.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-            
-            <div className="border-t border-gray-200 pt-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Quick Actions</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button className="p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition text-left">
-                  <h4 className="font-medium text-blue-900">Profile Settings</h4>
-                  <p className="text-sm text-blue-700 mt-1">Update your profile information</p>
-                </button>
-                <button className="p-4 bg-green-50 hover:bg-green-100 rounded-lg transition text-left">
-                  <h4 className="font-medium text-green-900">View Analytics</h4>
-                  <p className="text-sm text-green-700 mt-1">Check your activity stats</p>
-                </button>
-              </div>
+        {/* Mesazhet me stil */}
+        {message.text && (
+          <div className={`mb-6 p-4 rounded-2xl shadow-lg backdrop-blur-sm animate-bounceIn ${
+            message.type === 'success' 
+              ? 'bg-green-100 border-l-8 border-green-500 text-green-800' 
+              : 'bg-red-100 border-l-8 border-red-500 text-red-800'
+          }`}>
+            <div className="flex items-center">
+              <span className="text-2xl mr-3">{message.type === 'success' ? '🎉' : '⚠️'}</span>
+              <p className="font-medium">{message.text}</p>
             </div>
           </div>
+        )}
+
+        {/* Forma kreative */}
+        <div className="bg-white/30 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-8 border border-white/50 transition-all duration-300 hover:shadow-xl">
+          <div className="flex items-center mb-4">
+            <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center shadow-md">
+              <span className="text-white text-xl">{editingId ? '✏️' : '➕'}</span>
+            </div>
+            <h2 className="text-2xl font-bold ml-3 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              {editingId ? 'Edit Item' : 'Create New Item'}
+            </h2>
+          </div>
+          
+          <form onSubmit={editingId ? () => handleUpdate(editingId) : handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">📌 Title *</label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border-2 border-white/50 bg-white/80 focus:bg-white focus:border-indigo-500 transition-all outline-none"
+                  placeholder="Shkruani titullin..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">🏷️ Status</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border-2 border-white/50 bg-white/80 focus:bg-white focus:border-indigo-500 transition-all outline-none"
+                >
+                  <option value="active">🟢 Active</option>
+                  <option value="pending">🟡 Pending</option>
+                  <option value="completed">🔵 Completed</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">📝 Description</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows="3"
+                className="w-full px-4 py-2 rounded-xl border-2 border-white/50 bg-white/80 focus:bg-white focus:border-indigo-500 transition-all outline-none"
+                placeholder="Përshkruani detajet..."
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-bold rounded-full shadow-md hover:shadow-xl transition-all transform hover:scale-105"
+              >
+                {editingId ? '✏️ Update Item' : '✨ Create Item'}
+              </button>
+              {editingId && (
+                <button
+                  type="button"
+                  onClick={cancelEditing}
+                  className="px-6 py-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white font-bold rounded-full shadow-md hover:shadow-xl transition-all"
+                >
+                  ❌ Cancel
+                </button>
+              )}
+            </div>
+          </form>
+        </div>
+
+        {/* Lista e kartelave kreative */}
+        <div className="bg-white/30 backdrop-blur-md rounded-2xl shadow-2xl p-6 border border-white/50">
+          <div className="flex items-center mb-4">
+            <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center shadow-md">
+              <span className="text-white text-xl">📦</span>
+            </div>
+            <h2 className="text-2xl font-bold ml-3 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              My Items ({items.length})
+            </h2>
+          </div>
+
+          {loadingData ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+              <p className="mt-3 text-gray-600">Loading your magic...</p>
+            </div>
+          ) : items.length === 0 ? (
+            <div className="text-center py-12 bg-white/50 rounded-2xl">
+              <span className="text-6xl">✨</span>
+              <p className="mt-3 text-gray-600 font-medium">No items yet. Create your first masterpiece above!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className="group bg-white rounded-2xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-2xl hover:scale-105 transform"
+                >
+                  <div className={`h-2 ${getStatusColor(item.status)}`}></div>
+                  <div className="p-5">
+                    <div className="flex justify-between items-start">
+                      <h3 className="font-bold text-xl text-gray-800 mb-2 line-clamp-1">{item.title}</h3>
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${item.status === 'active' ? 'bg-green-100 text-green-700' : item.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {item.status === 'active' ? '🟢 Active' : item.status === 'pending' ? '🟡 Pending' : '🔵 Completed'}
+                      </span>
+                    </div>
+                    <p className="text-gray-600 text-sm mt-2 line-clamp-2">
+                      {item.description || '📄 No description provided'}
+                    </p>
+                    <div className="mt-4 flex justify-between items-center">
+                      <span className="text-xs text-gray-400">
+                        🗓️ {new Date(item.created_at).toLocaleDateString()}
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => startEditing(item)}
+                          className="text-indigo-600 hover:text-indigo-800 transition text-sm font-semibold px-2 py-1 rounded-lg hover:bg-indigo-50"
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="text-red-600 hover:text-red-800 transition text-sm font-semibold px-2 py-1 rounded-lg hover:bg-red-50"
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Animacion shtesë për mesazhet */}
+      <style jsx>{`
+        @keyframes bounceIn {
+          0% { transform: scale(0.9); opacity: 0; }
+          70% { transform: scale(1.02); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-bounceIn {
+          animation: bounceIn 0.4s ease-out;
+        }
+      `}</style>
     </div>
   );
 };
