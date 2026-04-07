@@ -47,7 +47,6 @@ const Login = () => {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-space">
       <div className="max-w-md w-full animate-slide-up">
-        {/* Header kreativ */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-3xl shadow-xl mb-4 transform rotate-3 hover:rotate-0 transition">
             <span className="text-4xl">🔐</span>
@@ -58,7 +57,6 @@ const Login = () => {
           <p className="mt-2 text-gray-100">Sign in to access your creative space</p>
         </div>
 
-        {/* Kartela e formës */}
         <div className="bg-white/30 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-white/50 transition-all duration-300 hover:shadow-xl">
           {serverError && (
             <div className="mb-4 p-3 rounded-xl bg-red-100 border-l-8 border-red-500 text-red-700 flex items-center">
